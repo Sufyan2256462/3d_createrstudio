@@ -68,11 +68,12 @@ const ModelViewer = ({ modelUrl }: ModelViewerProps) => {
         }}
         dpr={[1, 1.5]}
         onCreated={({ gl }) => {
-          gl.domElement.addEventListener('webglcontextlost', (e) => {
+          const handleContextLost = (e: Event) => {
             e.preventDefault();
-            console.warn('WebGL context lost');
-            setLoadError(true);
-          });
+            console.warn('WebGL context lost, attempting to recover...');
+            setKey(prev => prev + 1);
+          };
+          gl.domElement.addEventListener('webglcontextlost', handleContextLost);
         }}
       >
         <Suspense
