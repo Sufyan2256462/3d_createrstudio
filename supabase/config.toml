@@ -1,0 +1,10 @@
+project_id = "ldxdgihditjcmvmsrput"
+
+[functions.text-to-3d]
+verify_jwt = false
+
+[functions.image-to-3d]
+verify_jwt = false
+
+[functions.check-task]
+verify_jwt = false
