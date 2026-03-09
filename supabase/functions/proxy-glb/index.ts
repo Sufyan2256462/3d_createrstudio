@@ -11,7 +11,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { url } = await req.json();
+    let url;
+    try {
+      const body = await req.json();
+      url = body.url;
+    } catch (e) {
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     if (!url) {
       return new Response(JSON.stringify({ error: 'url is required' }), {
         status: 400,
@@ -19,7 +28,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const glbRes = await fetch(url);
+    let glbRes;
+    try {
+      glbRes = await fetch(url);
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
+      return new Response(JSON.stringify({ error: 'Failed to connect to model host' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (!glbRes.ok) {
       return new Response(JSON.stringify({ error: 'Failed to fetch model' }), {
         status: 502,

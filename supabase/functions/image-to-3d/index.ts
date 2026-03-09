@@ -40,7 +40,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { image, demo } = await req.json();
+    let image, demo;
+    try {
+      const body = await req.json();
+      image = body.image;
+      demo = body.demo;
+    } catch (e) {
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     if (!image) {
       return new Response(JSON.stringify({ error: 'Image is required' }), {
         status: 400,
@@ -49,7 +59,7 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = Deno.env.get('TRIPO_API_KEY');
-    
+
     // Demo mode
     if (demo || !apiKey) {
       await new Promise(r => setTimeout(r, 2000));
@@ -65,20 +75,39 @@ Deno.serve(async (req) => {
 
     // Upload image and create task - return task_id immediately
     const imageToken = await uploadImage(apiKey, image);
-    
-    const res = await fetch(`${TRIPO_API}/task`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        type: 'image_to_model',
-        file: { type: 'png', file_token: imageToken },
-      }),
-    });
+
+    let res;
+    try {
+      res = await fetch(`${TRIPO_API}/task`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          type: 'image_to_model',
+          file: { type: 'png', file_token: imageToken },
+        }),
+      });
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
+      return new Response(JSON.stringify({ error: 'Failed to connect to Tripo API' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Tripo API error:', res.status, errorText);
+      return new Response(JSON.stringify({ error: `Tripo API error: ${res.status}` }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const taskRes = await res.json();
-    
+
     if (taskRes.code !== 0) {
       console.log('Tripo error code:', taskRes.code, 'message:', taskRes.message);
       const msg = (taskRes.message || '').toLowerCase();

@@ -21,7 +21,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { prompt, demo } = await req.json();
+    let prompt, demo;
+    try {
+      const body = await req.json();
+      prompt = body.prompt;
+      demo = body.demo;
+    } catch (e) {
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     if (!prompt) {
       return new Response(JSON.stringify({ error: 'Prompt is required' }), {
         status: 400,
@@ -43,14 +53,33 @@ Deno.serve(async (req) => {
     }
 
     // Create task and return task_id immediately
-    const res = await fetch(`${TRIPO_API}/task`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ type: 'text_to_model', prompt }),
-    });
+    let res;
+    try {
+      res = await fetch(`${TRIPO_API}/task`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ type: 'text_to_model', prompt }),
+      });
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
+      return new Response(JSON.stringify({ error: 'Failed to connect to Tripo API' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Tripo API error:', res.status, errorText);
+      return new Response(JSON.stringify({ error: `Tripo API error: ${res.status}` }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const taskRes = await res.json();
     console.log('Tripo create task response:', JSON.stringify(taskRes));
 
